@@ -16,10 +16,14 @@ Una con los filtros para que funcione el remote service con la Apigee org la cua
 
 /home/adminux/apigee-envoy-files/apigee-remote-service-cli/samples/envoy-config.yaml
 
-Ejecuta con:
+y trabaja en conjunto con el siguiente archivo yaml ubicado en : /home/adminux/apigee-envoy-files/apigee-remote-service-cli/config.yaml
+
+Ejecutalo ambos con: 
+./envoy_2.1.1 -c /home/adminux/apigee-envoy-files/apigee-remote-service-cli/config.yaml -l debug > /nombreyrutadetulog 2>&1
+
 sudo envoy -c envoy-config.yaml -l off --component-log-level http:debug,connection:debug --log-path /ubicacionDondequierasqueseguardenlogs
 
-y la otra version (actualmente se ejecuta) que cuenta con filtro http y tcp:
+y la otra version (actualmente se ejecuta) que cuenta con filtro http y tcp, este no necesita de otro archivo ya que no establece comunicacion con la Apigee org:
 /home/adminux/envoy/tcp-https-envoy-config-v2.yaml
 
 Ejecuta con:
