@@ -1,0 +1,248 @@
+static_resources:
+    listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+      - filters:
+        - name: envoy.filters.network.http_connection_manager
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            stat_prefix: ingress_http
+            access_log:
+            - name: envoy.access_loggers.stdout
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+            http_filters:
+
+            route_config:
+              name: local_route
+              virtual_hosts:
+              - name: remote_1 # Set to a backend service name
+                domains: ["*"]
+                routes:
+# This first route will serve for the GCP health check. Configure HC to point to /healtzh
+                - match:
+                    prefix: "/hc"
+                  direct_response:
+                    status: 200
+                    body:
+                      inline_string: "Healthy"
+#                - match: { prefix: "/istio443"}
+#                  route:
+#                    cluster: istio443
+#                - match: { prefix: "/auth/realms/ms-anthos-qa/protocol/openid-connect/token"}
+#                  route:
+#                    cluster: keycloack
+                - match:
+                    prefix: "/south/ActinverServices/UsersService"
+# Change to the desired route name
+                  route:
+                    regex_rewrite: 
+                      pattern: 
+                        google_re2:
+                          max_program_size: 100
+                        regex: "\/south\/*\/*"
+                      substitution: /
+                    host_rewrite_literal: envoy-dev
+#                    auto_host_rewrite: true
+                    cluster: envoy-dev
+                - match:
+                    prefix: "/auth/realms/ms-anthos-qa/protocol/openid-connect/token"
+# Change to the desired route name
+                  route:
+#                    regex_rewrite:
+#                      pattern:
+#                        google_re2:
+#                          max_program_size: 2500
+#                        regex: "\/auth\/realms\/ms-anthos-qa\/protocol\/openid-connect\/token"
+#                      substitution: /
+#                      substitution: \0
+                    host_rewrite_literal: 10.155.255.113
+#                    auto_host_rewrite: true
+                    cluster: keycloack
+
+                - match:
+                    prefix: "/"
+# Change to the desired route name
+                  route:
+                    regex_rewrite:
+                      pattern:
+                        google_re2:
+                          max_program_size: 100
+                        regex: "\/"
+                      substitution: /
+                    host_rewrite_literal: 10.156.200.238:80
+#                    auto_host_rewrite: true
+                    cluster: istio80
+                    timeout: 150s
+#                    timeout: { request_timeout: 150s , response_timeout: 150s }
+                  request_headers_to_add:
+#                  - header:
+#                     key: "x-envoy-expected-rq-timeout-ms"
+#                     value: "25000"
+                  - header:
+                     key: "x-envoy-upstream-rq-timeout-ms"
+                     value: "150000"
+ 
+            http_filters:
+#            - name: envoy.filters.http.header
+#              typed_config:
+#                "@type": type.googleapis.com/envoy.extensions.filters.http.header.v3.Header
+#                request_headers_to_add:
+#                     - header:
+#                         key: "X-Custom-Header"
+#                         value: "Custom-Value"
+            - name: envoy.filters.http.router
+#                - match: { prefix: "/qa" }
+#                  route:
+#                    cluster: envoy-qa
+#                  request_headers_to_add:
+#                   - header:
+#                       key: Host
+#                       value: example.com
+
+    clusters:
+    
+    - name: envoy-dev
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 15s
+      load_assignment:
+        cluster_name: envoy-dev
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: "envoy-dev"
+                  port_value: 443
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+
+
+    - name: envoy-qa  
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 15s
+      load_assignment:
+        cluster_name: envoy-qa  
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: "envoy-qa"
+                  port_value: 8080
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+
+    - name: keycloack
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 4s
+      load_assignment:
+        cluster_name: keycloack
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.155.255.113
+                  port_value: 443
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+#          sni: sso-dev.actinver.com.mx
+    - name: istio15012
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: istio15012
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.156.200.238
+                  port_value: 15012          
+    
+    - name: istio15021
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: istio15021
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.156.200.238
+                  port_value: 15021
+                  
+    - name: istio80
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 90s
+      load_assignment:
+        cluster_name: istio80
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.156.200.238
+                  port_value: 80
+    
+    - name: istio443
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: istio443
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.156.200.238
+                  port_value: 443
+                  
+    
+    - name: istio15443
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: istio15443
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 10.156.200.238
+                  port_value: 15443
+                  
+    - name: istio30946
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      connect_timeout: 2s
+      load_assignment:
+        cluster_name: istio30946
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+#                  address: 10.156.200.237
+                  address: 10.156.200.14
+                  port_value: 30946
